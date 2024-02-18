@@ -19,6 +19,8 @@ let cuePower = 5;
 let cueBallSelected = false;
 let currentMode = MODE_STARTING_POSITIONS;
 let lastMode = null;
+let showInstructionsFlag = false; 
+
 
 // Declare boundary variables globally
 let boundaryTop, boundaryBottom, boundaryLeft, boundaryRight;
@@ -50,6 +52,50 @@ function createBall(x, y, diameter,  isStatic=true) {
     return ball;
 }
 
+
+function initializeGameState() {
+    // Set the game to its starting mode, if any specific setup is required
+    // For MODE_STARTING_POSITIONS, ensure all balls including the cue ball are placed correctly
+    currentMode = MODE_STARTING_POSITIONS; // Explicitly set if not already set
+    lastMode = null; // Ensure mode change logic will trigger
+
+    // Setup initial balls' positions based on the current mode
+    // For simplicity, this example will just reiterate setting up the cue ball
+    // and applying any mode-specific setups that are normally done when a mode is switched to
+    if (!cueBall) {
+        // Add the cue ball if it's not already present (it should be, but this is just in case)
+        cueBall = createBall(330, 400, BALL_DIAMETER, false); // Set to dynamic for interaction
+    } else {
+        // If the cue ball exists, ensure it's set to a dynamic state for interaction
+        Matter.Body.setStatic(cueBall, false);
+    }
+
+    // Reset selection states to ensure consistent behavior
+    cueBallSelected = false;
+    cueBallAdded = true; // Assume the cue ball is added to prevent re-adding it in modes 2 and 3
+
+    // Additional initialization for other balls or game elements can be done here
+    // For instance, placing red and colored balls according to the starting mode
+    switch (currentMode) {
+        case MODE_STARTING_POSITIONS:
+            redBalls(); // Place red balls in starting positions
+            placeColoredBalls(false); // Place colored balls in starting positions
+            break;
+        case MODE_RANDOM_ALL:
+            allBallsRdm(); // Place all balls in random positions
+            break;
+        case MODE_RANDOM_RED:
+            redBallsRdm(); // Place only red balls in random positions
+            placeColoredBalls(false); // Place colored balls in starting positions
+            break;
+    }
+    
+    // Call any functions needed to refresh or update the game display based on the initial state
+    // For example, if you have a function that updates the display or UI elements based on the current mode
+    updateGameDisplay(); // This is a placeholder for any actual function you might have
+}
+
+// Remember to call initializeGameState at the end of your setup function
 function setup() {
     createCanvas(1200, 800);
     rectMode(CENTER);
@@ -58,8 +104,7 @@ function setup() {
     world = engine.world;
     engine.world.gravity.y = 0; 
     engine.world.gravity.x = 0; 
-    cueBall = createBall(330, 400, BALL_DIAMETER, true); // Dynamic cue ball
-    cueBallSelected = false;
+    
     // Create table boundaries
     createTableBoundaries();
     addCornerBoundaries();
@@ -72,11 +117,69 @@ function setup() {
             handleCollision(pair.bodyA, pair.bodyB);
         }
     });
+ 
+    // Initialize the game state
+    initializeGameState();
+    showInstructionsFlag = true;
+
     noLoop();
+}
+function toggleInstructions() {
+    showInstructionsFlag = !showInstructionsFlag; // Toggle visibility
+}
+
+function drawInstructionsOverlay() {
+    if (showInstructionsFlag) {
+        fill(0, 0, 0, 150); // Semi-transparent overlay
+        rectMode(CORNER); // Set rectMode to CORNER for overlay
+        rect(0, 0, width, height); // Cover the entire canvas
+
+        fill(255); // White text
+        textSize(20); // Adjust text size as needed for better visibility
+        textAlign(CENTER, CENTER); // Align text to center both horizontally and vertically
+
+        // Ensure the text is placed in the center of the canvas
+        text("How to Play:\n- Use mouse to aim and click to hit the cue ball.\n- Press 1, 2, or 3 to select the game mode and start the game.\n- Try to pocket all balls!\nPress 'H' to hide these instructions.", width / 2, height / 2);
+        
+        rectMode(CENTER); // Reset rectMode back to CENTER after drawing the overlay
+    }
+}
+
+
+function updateGameDisplay() {
+    
+    fill(0); 
+    noStroke();
+    rect(10, 10, 300, 30); 
+
+    
+    fill(255); // Set text color to white
+    textSize(20);
+    textAlign(LEFT, TOP);
+
+    
+    let modeText = "Current Mode: ";
+    switch (currentMode) {
+        case MODE_STARTING_POSITIONS:
+            modeText += "Starting Positions (PRESS 1)";
+            break;
+        case MODE_RANDOM_ALL:
+            modeText += "Random All (PRESS 2)";
+            break;
+        case MODE_RANDOM_RED:
+            modeText += "Random Red (PRESS 3)";
+            break;
+        default:
+            modeText += "Unknown";
+            break;
+    }
+
+    
+    text(modeText, 20, 20);
 }
 
 function createTableBoundaries() {
-    let boundaryThickness = 20; // Standardized thickness for all boundaries
+    let boundaryThickness = 20; 
     let cushionOptions = {
         isStatic: true,
         restitution: 0.9,
@@ -145,7 +248,7 @@ function draw() {
             break;
     }
     if (cueBallSelected && cueBall) {
-        drawCue(); // Only draw the cue if cueBallSelected is true and cueBall is not null
+        drawCue(); 2
     }
 
    
@@ -186,7 +289,10 @@ function draw() {
     }
     // Render red balls
     drawBalls(rBalls);
-   
+    if (showInstructionsFlag) {
+        drawInstructionsOverlay();
+    }
+
 }
 
 
@@ -494,56 +600,57 @@ function getCueEndPosition() {
 }
 
 
-// Update mouseClicked function
+
+
+
+
 function mouseClicked() {
-    
-     
-   if (cueBall && dist(mouseX, mouseY, cueBall.position.x, cueBall.position.y) < BALL_DIAMETER / 2) {
+    // Check if the click is on the cue ball for any mode
+    if (cueBall && dist(mouseX, mouseY, cueBall.position.x, cueBall.position.y) < BALL_DIAMETER / 2) {
         if (cueBallSelected) {
-            // Make the cue ball dynamic
+            // Cue ball was already selected, apply force to move it
+            // Ensure the cue ball is dynamic
             Matter.Body.setStatic(cueBall, false);
 
-            // Get the cue stick's end position
-            let cueEndPos = getCueEndPosition();
-           
-
-            if (cueEndPos.x === 0 && cueEndPos.y === 0) {
-                console.log("Invalid cue end position, skipping force application");
-                return;
-            }
-
-            // Calculate the direction of the force
-            let forceDirection = createVector(cueEndPos.x - cueBall.position.x, cueEndPos.y - cueBall.position.y);
-            forceDirection.normalize(); // Normalize to get the direction
-
-            // Apply the force magnitude
-            let forceMagnitude = cuePower * 0.01;
-            let force = forceDirection.mult(forceMagnitude);
+            // Calculate the direction and magnitude of the force to apply
+            let forceMagnitude = cuePower * 0.01; // Adjust the force magnitude as necessary
+            let dx = cos(cueAngle);
+            let dy = sin(cueAngle);
+            let force = Matter.Vector.create(dx * forceMagnitude, dy * forceMagnitude);
 
             // Apply the force to the cue ball
             Matter.Body.applyForce(cueBall, cueBall.position, force);
 
+            // Deselect the cue ball after applying force
             cueBallSelected = false;
         } else {
+            // Cue ball was not already selected, select it for aiming
             cueBallSelected = true;
         }
+        return false; // Prevent default behavior and stop further processing
     }
-    if (!cueBall) {
-        placeCueBall();
-        return; // Exit the function to prevent further processing
-    }
-    // Logic for MODE_RANDOM_ALL and MODE_RANDOM_RED
-    if ((currentMode === MODE_RANDOM_ALL || currentMode === MODE_RANDOM_RED) && !cueBallAdded) {
+
+    // Mode-specific logic for adding a cue ball in modes 2 and 3
+    if ((currentMode === MODE_RANDOM_ALL || currentMode === MODE_RANDOM_RED) && !cueBallAdded && !cueBallSelected) {
         cueBallAdded = true;
-        cueBall = createBall(mouseX, mouseY, BALL_DIAMETER, false); // Dynamic cue ball on mouse click
-        cueBallSelected = false;
+        cueBall = createBall(mouseX, mouseY, BALL_DIAMETER, false); // Add the cue ball dynamically
+        // No need to toggle cueBallSelected here as we're adding a new cue ball
     }
+
+    return false; // Prevent default behavior
 }
 
 
 
-
 function keyPressed() {
+    
+    
+    if (key === 'H' || key === 'h') {
+        toggleInstructions();
+        redraw();
+        return false;
+    }
+
     cueBallAdded = false;
     if (key == '1') {
         currentMode = MODE_STARTING_POSITIONS;
@@ -553,4 +660,5 @@ function keyPressed() {
         currentMode = MODE_RANDOM_RED;
     }
     loop()
+    return false;
 }
